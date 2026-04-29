@@ -1,4 +1,4 @@
-# Frappe Attachment Preview
+# Preview Attachment for Frappe Framework
 
 This Frappe app introduces a functionality to preview file attachments directly within the Frappe framework. By adding an **icon** next to each attachment, users can quickly view the content of attached files without downloading them.
 
