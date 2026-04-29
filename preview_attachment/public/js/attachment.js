@@ -44,28 +44,11 @@ frappe.ui.form.PreviewAttachment = class PreviewAttachment {
             const url = att.file_url;
             const ext = url.split('?')[0].split('.').pop().toLowerCase();
 
-            // Update Header
-            dialog.set_title(`<div class="preview-title-container" style="display:flex; align-items:center; justify-content:space-between; width:100%;">
-                <span class="preview-title-text">Preview: ${frappe.utils.escape_html(name)}</span>
-                <div class="preview-navigation">
-                    <button class="nav-btn prev-file"><i class="octicon octicon-chevron-left"></i></button>
-                    <span class="nav-count">${current_index + 1} / ${attachments.length}</span>
-                    <button class="nav-btn next-file"><i class="octicon octicon-chevron-right"></i></button>
-                </div>
-            </div>`);
+            // Update Header with file counter
+            dialog.set_title(`Preview: ${frappe.utils.escape_html(name)} (${current_index + 1}/${attachments.length})`);
 
             // Re-render content
             PreviewAttachment.render_preview_content(preview_area, url, ext);
-
-            // Re-bind navigation events (since title HTML was replaced)
-            dialog.header.find('.prev-file').on('click', () => {
-                current_index = (current_index - 1 + attachments.length) % attachments.length;
-                refresh_navigation();
-            });
-            dialog.header.find('.next-file').on('click', () => {
-                current_index = (current_index + 1) % attachments.length;
-                refresh_navigation();
-            });
         };
 
         // Initial render
@@ -93,11 +76,39 @@ frappe.ui.form.PreviewAttachment = class PreviewAttachment {
         }
 
         PreviewAttachment.additional_actions(dialog);
+
+        // Add fixed-position overlay nav buttons when there are multiple attachments
+        if (attachments.length > 1) {
+            const $modal_body = dialog.$wrapper.find('.modal-body');
+            $modal_body.css('position', 'relative');
+
+            const $overlay_prev = $('<button class="preview-nav-overlay preview-nav-prev"><i class="octicon octicon-chevron-left"></i></button>');
+            const $overlay_next = $('<button class="preview-nav-overlay preview-nav-next"><i class="octicon octicon-chevron-right"></i></button>');
+            $modal_body.append($overlay_prev, $overlay_next);
+
+            const handle_prev = () => {
+                current_index = (current_index - 1 + attachments.length) % attachments.length;
+                refresh_navigation();
+            };
+            const handle_next = () => {
+                current_index = (current_index + 1) % attachments.length;
+                refresh_navigation();
+            };
+
+            $overlay_prev.on('click', handle_prev);
+            $overlay_next.on('click', handle_next);
+
+            // Keyboard navigation
+            $(document).on('keydown.preview_attachment_nav', (e) => {
+                if (e.key === 'ArrowLeft') handle_prev();
+                if (e.key === 'ArrowRight') handle_next();
+            });
+        }
     }
 
     static render_preview_content(preview_area, file_url, file_extension) {
         // Render the file based on its type
-        if (['jpg', 'jpeg', 'png', 'gif'].includes(file_extension)) {
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(file_extension)) {
             preview_area.html(`<img src="${frappe.utils.escape_html(file_url)}" class="preview-content" style="width: 100%; height: auto; max-height: 100%;">`);
         } else if (file_extension === 'pdf') {
             preview_area.html(`
@@ -329,6 +340,7 @@ frappe.ui.form.PreviewAttachment = class PreviewAttachment {
         }
 
         $(document).off('.preview_attachment_drag');
+        $(document).off('.preview_attachment_nav');
     }
 };
 
@@ -351,32 +363,23 @@ frappe.ui.form.Attachments = class Attachments extends frappe.ui.form.Attachment
 
         const attachment_row = this.add_attachment_wrapper.next().find(`a[href="${file_url}"]`).closest('.attachment-row');
         if (attachment_row.length) {
-            // Add a compact preview button group with preview and side-peek buttons
+            // Remove Frappe's native lock/file-link icon that jumps to the File doctype
+            attachment_row.find('.data-pill a[href^="/app/file/"]').remove();
+
+            // Add a preview button
             const preview_button = `
-                <div class="attachment-btn-group">
-                    <button class="btn btn-xs btn-secondary preview-btn"
-                        data-file-url="${frappe.utils.escape_html(file_url)}"
-                        title="Preview">
-                        <i class="octicon octicon-eye-unwatch"></i>
-                    </button>
-                    <button class="btn btn-xs btn-secondary peek-btn"
-                        data-file-url="${frappe.utils.escape_html(file_url)}"
-                        title="Side Peek">
-                        <i class="octicon octicon-browser"></i>
-                    </button>
-                </div>`;
+                <button class="btn btn-xs btn-secondary preview-btn"
+                    data-file-url="${frappe.utils.escape_html(file_url)}"
+                    title="Preview">
+                    <i class="octicon octicon-eye-unwatch"></i>
+                </button>`;
 
-            const $btn_group = $(preview_button);
-            attachment_row.find('.data-pill').prepend($btn_group);
+            const $preview_btn = $(preview_button);
+            attachment_row.find('.data-pill').prepend($preview_btn);
 
-            $btn_group.find('.preview-btn').on('click', (e) => {
+            $preview_btn.on('click', (e) => {
                 e.preventDefault(); e.stopPropagation();
                 this.preview_attachment(file_url, file_name, false);
-            });
-
-            $btn_group.find('.peek-btn').on('click', (e) => {
-                e.preventDefault(); e.stopPropagation();
-                this.preview_attachment(file_url, file_name, true);
             });
         }
     }
